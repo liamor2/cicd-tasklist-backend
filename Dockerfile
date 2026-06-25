@@ -12,7 +12,7 @@ COPY tsconfig.json ./
 COPY src ./src
 RUN bun run build
 
-FROM oven/bun:1.3.5-alpine AS prod-deps
+FROM oven/bun:1.3.14-alpine AS prod-deps
 
 WORKDIR /app
 
