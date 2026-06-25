@@ -49,10 +49,114 @@ describe("TaskService", () => {
 		});
 	});
 
-	// ... TODO: Add more tests
-	/*
 	describe("findById", () => {
-		...	
+		it("should return the task matching the id", async () => {
+			(mockPrisma.task.findUnique as any).mockResolvedValue(mockTask);
+
+			const result = await taskService.findById(1);
+
+			expect(result).toEqual(mockTask);
+			expect(mockPrisma.task.findUnique).toHaveBeenCalledWith({
+				where: { id: 1 },
+			});
+		});
+
+		it("should return null when the task does not exist", async () => {
+			(mockPrisma.task.findUnique as any).mockResolvedValue(null);
+
+			const result = await taskService.findById(999);
+
+			expect(result).toBeNull();
+			expect(mockPrisma.task.findUnique).toHaveBeenCalledWith({
+				where: { id: 999 },
+			});
+		});
 	});
-	*/
+
+	describe("create", () => {
+		it("should create a task with title and description", async () => {
+			(mockPrisma.task.create as any).mockResolvedValue(mockTask);
+
+			const result = await taskService.create({
+				title: "Test Task",
+				description: "A test task description",
+			});
+
+			expect(result).toEqual(mockTask);
+			expect(mockPrisma.task.create).toHaveBeenCalledWith({
+				data: {
+					title: "Test Task",
+					description: "A test task description",
+				},
+			});
+		});
+
+		it("should pass an undefined description when omitted", async () => {
+			(mockPrisma.task.create as any).mockResolvedValue({
+				...mockTask,
+				description: null,
+			});
+
+			await taskService.create({ title: "Test Task" });
+
+			expect(mockPrisma.task.create).toHaveBeenCalledWith({
+				data: {
+					title: "Test Task",
+					description: undefined,
+				},
+			});
+		});
+	});
+
+	describe("update", () => {
+		it("should update an existing task", async () => {
+			const updatedTask = { ...mockTask, completed: true };
+			(mockPrisma.task.findUnique as any).mockResolvedValue(mockTask);
+			(mockPrisma.task.update as any).mockResolvedValue(updatedTask);
+
+			const result = await taskService.update(1, { completed: true });
+
+			expect(result).toEqual(updatedTask);
+			expect(mockPrisma.task.findUnique).toHaveBeenCalledWith({
+				where: { id: 1 },
+			});
+			expect(mockPrisma.task.update).toHaveBeenCalledWith({
+				where: { id: 1 },
+				data: { completed: true },
+			});
+		});
+
+		it("should throw when updating a missing task", async () => {
+			(mockPrisma.task.findUnique as any).mockResolvedValue(null);
+
+			await expect(taskService.update(999, { completed: true })).rejects.toThrow(
+				"Task not found",
+			);
+			expect(mockPrisma.task.update).not.toHaveBeenCalled();
+		});
+	});
+
+	describe("remove", () => {
+		it("should delete an existing task", async () => {
+			(mockPrisma.task.findUnique as any).mockResolvedValue(mockTask);
+			(mockPrisma.task.delete as any).mockResolvedValue(mockTask);
+
+			const result = await taskService.remove(1);
+
+			expect(result).toEqual(mockTask);
+			expect(mockPrisma.task.findUnique).toHaveBeenCalledWith({
+				where: { id: 1 },
+			});
+			expect(mockPrisma.task.delete).toHaveBeenCalledWith({
+				where: { id: 1 },
+			});
+		});
+
+		it("should throw when deleting a missing task", async () => {
+			(mockPrisma.task.findUnique as any).mockResolvedValue(null);
+
+			await expect(taskService.remove(999)).rejects.toThrow("Task not found");
+			expect(mockPrisma.task.delete).not.toHaveBeenCalled();
+		});
+	});
 });

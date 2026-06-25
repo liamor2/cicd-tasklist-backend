@@ -1,0 +1,10 @@
+node_modules
+dist
+coverage
+reports
+.scannerwork
+.git
+.env
+*.log
+npm-debug.log*
+prisma/test.db

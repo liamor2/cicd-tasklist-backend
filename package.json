@@ -4,28 +4,39 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "build": "tsc",
+    "build": "prisma generate && tsc",
     "start": "node dist/server.js",
     "test": "vitest run --config vitest.config.ts unit",
     "test:coverage": "vitest run --config vitest.config.ts unit --coverage",
     "test:e2e": "vitest run --config vitest.config.ts e2e",
     "test:e2e:coverage": "vitest run --config vitest.config.ts e2e --coverage",
     "prisma:migrate": "prisma migrate dev",
-    "prisma:generate": "prisma generate"
+    "prisma:generate": "prisma generate",
+    "docker:build": "docker compose build app",
+    "docker:up": "docker compose up --build",
+    "docker:down": "docker compose down",
+    "trivy": "bun run trivy:scan",
+    "trivy:build": "docker compose build app",
+    "trivy:scan": "mkdir -p reports && docker compose -f docker-compose.ci.yml run --rm trivy",
+    "trivy:sbom": "mkdir -p reports && docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v \"$(pwd)/reports:/reports\" -v cicd-tasklist-backend_trivy-cache:/root/.cache/trivy aquasec/trivy:latest image --format cyclonedx --output /reports/sbom.cdx.json efrei-pro-pipepline-tp4-backend:latest",
+    "trivy:ci": "bun run trivy:build && bun run trivy:scan && bun run trivy:sbom",
+    "sonar": "docker compose --env-file .env -f docker-compose.ci.yml run --rm sonar-scanner",
+    "sonar:all": "bun run sonar && sh -c 'cd ../cicd-tasklist-frontend && bun run sonar'"
   },
   "dependencies": {
     "@prisma/client": "^6.9.0",
     "cors": "^2.8.5",
     "dotenv": "^16.5.0",
-    "express": "^5.1.0"
+    "express": "^5.1.0",
+    "prisma": "^6.9.0"
   },
   "devDependencies": {
+    "@sonar/scan": "^4.3.8",
     "@types/cors": "^2.8.17",
     "@types/express": "^5.0.2",
     "@types/node": "^22.15.0",
     "@types/supertest": "^6.0.2",
     "@vitest/coverage-v8": "^3.2.6",
-    "prisma": "^6.9.0",
     "supertest": "^7.1.0",
     "tsx": "^4.19.0",
     "typescript": "^5.8.0",

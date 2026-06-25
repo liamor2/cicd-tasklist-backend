@@ -1,0 +1,44 @@
+services:
+  sonar-scanner:
+    image: sonarsource/sonar-scanner-cli:latest
+    working_dir: /usr/src
+    user: "0:0"
+    command:
+      - -Dsonar.host.url=${SONAR_HOST_URL}
+      - -Dsonar.token=${SONAR_TOKEN}
+      - -Dsonar.projectKey=${SONAR_PROJECT_KEY}
+      - -Dsonar.qualitygate.wait=true
+      - -Dsonar.qualitygate.timeout=300
+    environment:
+      SONAR_USER_HOME: /tmp/.sonar
+    volumes:
+      - .:/usr/src
+      - sonar-cache:/tmp/.sonar/cache
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  trivy:
+    image: aquasec/trivy:latest
+    command:
+      - image
+      - --scanners
+      - vuln
+      - --exit-code
+      - "1"
+      - --severity
+      - CRITICAL,HIGH
+      - --ignore-unfixed
+      - --no-progress
+      - --format
+      - json
+      - --output
+      - /reports/trivy-vulnerabilities.json
+      - efrei-pro-pipepline-tp4-backend:latest
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - trivy-cache:/root/.cache/trivy
+      - ./reports:/reports
+
+volumes:
+  sonar-cache:
+  trivy-cache:
