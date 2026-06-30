@@ -1,3 +1,73 @@
+def STAGE_HASHES = [:]
+
+def cacheKey(String stageName) {
+  return stageName.toLowerCase().replaceAll(/[^a-z0-9]+/, '-')
+}
+
+def cacheDir() {
+  def rawJob = env.JOB_NAME ?: 'local-job'
+  def jobKey = rawJob.replaceAll(/[^A-Za-z0-9_.-]+/, '_')
+  return "${env.HOME}/.jenkins-stage-cache/${jobKey}"
+}
+
+def shellQuote(String value) {
+  return "'" + value.replace("'", "'\\''") + "'"
+}
+
+def computeStageHash(String stageName, List<String> patterns) {
+  def quotedPatterns = patterns.collect { shellQuote(it) }.join(' ')
+  def hash = sh(
+    script: """
+      set -eu
+      tmp=\$(mktemp)
+      for pattern in ${quotedPatterns}; do
+        git ls-files -- "\$pattern" >> "\$tmp" || true
+      done
+      sort -u "\$tmp" | while IFS= read -r file; do
+        if [ -f "\$file" ]; then
+          sha256sum "\$file"
+        fi
+      done | sha256sum | awk '{print \$1}'
+      rm -f "\$tmp"
+    """,
+    returnStdout: true
+  ).trim()
+  STAGE_HASHES[stageName] = hash
+  return hash
+}
+
+def shouldRunStage(String stageName, List<String> patterns) {
+  def hash = computeStageHash(stageName, patterns)
+  def marker = "${cacheDir()}/${cacheKey(stageName)}.sha256"
+  def hit = sh(
+    script: """
+      set +e
+      test -f ${shellQuote(marker)} && test "\$(cat ${shellQuote(marker)})" = ${shellQuote(hash)}
+    """,
+    returnStatus: true
+  ) == 0
+
+  if (hit) {
+    echo "Skipping '${stageName}': same inputs already succeeded (${hash})."
+    return false
+  }
+
+  echo "Running '${stageName}': inputs changed or no successful cache exists (${hash})."
+  return true
+}
+
+def markStageSuccess(String stageName) {
+  def hash = STAGE_HASHES[stageName]
+  if (!hash) {
+    error "No stage hash recorded for '${stageName}'."
+  }
+  def marker = "${cacheDir()}/${cacheKey(stageName)}.sha256"
+  sh """
+    mkdir -p ${shellQuote(cacheDir())}
+    printf '%s\n' ${shellQuote(hash)} > ${shellQuote(marker)}
+  """
+}
+
 pipeline {
   agent any
 
@@ -16,74 +86,25 @@ pipeline {
 
   stages {
     stage('Install dependencies') {
-      when {
-        anyOf {
-          expression { currentBuild.number == 1 }
-          changeset 'Jenkinsfile'
-          changeset 'package.json'
-          changeset 'package-lock.json'
-          changeset 'tsconfig.json'
-          changeset 'vitest.config.ts'
-          changeset 'biome.json'
-          changeset 'src/**'
-          changeset 'prisma/**'
-          changeset 'Dockerfile'
-          changeset 'docker-compose*.yml'
-          changeset 'sonar-project.properties'
-        }
-      }
-      steps {
-        sh 'npm ci --cache "$HOME/.npm-cache" --prefer-offline'
-      }
+      when { expression { shouldRunStage('Install dependencies', ['Jenkinsfile', 'package.json', 'package-lock.json', 'tsconfig.json', 'vitest.config.ts', 'biome.json', 'src/**', 'prisma/**', 'sonar-project.properties']) } }
+      steps { sh 'npm ci --cache "$HOME/.npm-cache" --prefer-offline' }
+      post { success { markStageSuccess('Install dependencies') } }
     }
 
     stage('Generate Prisma client') {
-      when {
-        anyOf {
-          expression { currentBuild.number == 1 }
-          changeset 'package.json'
-          changeset 'package-lock.json'
-          changeset 'prisma/**'
-          changeset 'src/**'
-          changeset 'tsconfig.json'
-        }
-      }
-      steps {
-        sh 'npm run prisma:generate'
-      }
+      when { expression { shouldRunStage('Generate Prisma client', ['Jenkinsfile', 'package.json', 'package-lock.json', 'prisma/**']) } }
+      steps { sh 'npm run prisma:generate' }
+      post { success { markStageSuccess('Generate Prisma client') } }
     }
 
     stage('Lint and format check') {
-      when {
-        anyOf {
-          expression { currentBuild.number == 1 }
-          changeset 'Jenkinsfile'
-          changeset 'package.json'
-          changeset 'package-lock.json'
-          changeset 'tsconfig.json'
-          changeset 'vitest.config.ts'
-          changeset 'biome.json'
-          changeset 'src/**'
-          changeset 'prisma/**'
-        }
-      }
-      steps {
-        sh 'npm run check'
-      }
+      when { expression { shouldRunStage('Lint and format check', ['Jenkinsfile', 'package.json', 'package-lock.json', 'tsconfig.json', 'vitest.config.ts', 'biome.json', 'src/**', 'prisma/**']) } }
+      steps { sh 'npm run check' }
+      post { success { markStageSuccess('Lint and format check') } }
     }
 
     stage('Unit tests') {
-      when {
-        anyOf {
-          expression { currentBuild.number == 1 }
-          changeset 'package.json'
-          changeset 'package-lock.json'
-          changeset 'tsconfig.json'
-          changeset 'vitest.config.ts'
-          changeset 'src/**'
-          changeset 'prisma/**'
-        }
-      }
+      when { expression { shouldRunStage('Unit tests', ['Jenkinsfile', 'package.json', 'package-lock.json', 'tsconfig.json', 'vitest.config.ts', 'src/**', 'prisma/**', 'sonar-project.properties']) } }
       steps {
         sh 'npm run test:coverage'
         sh 'mkdir -p reports coverage'
@@ -91,134 +112,66 @@ pipeline {
         sh 'cp coverage/lcov.info coverage/unit.lcov.info'
       }
       post {
-        always {
-          junit allowEmptyResults: true, testResults: 'reports/junit-unit.xml'
-        }
+        success { markStageSuccess('Unit tests') }
+        always { junit allowEmptyResults: true, testResults: 'reports/junit-unit.xml' }
       }
     }
 
     stage('E2E tests') {
-      when {
-        anyOf {
-          expression { currentBuild.number == 1 }
-          changeset 'package.json'
-          changeset 'package-lock.json'
-          changeset 'tsconfig.json'
-          changeset 'vitest.config.ts'
-          changeset 'src/**'
-          changeset 'prisma/**'
-        }
-      }
+      when { expression { shouldRunStage('E2E tests', ['Jenkinsfile', 'package.json', 'package-lock.json', 'tsconfig.json', 'vitest.config.ts', 'src/**', 'prisma/**', 'sonar-project.properties']) } }
       steps {
         sh 'npm run test:e2e:coverage'
         sh 'cp reports/junit.xml reports/junit-e2e.xml'
         sh 'cp coverage/lcov.info coverage/e2e.lcov.info'
       }
       post {
-        always {
-          junit allowEmptyResults: true, testResults: 'reports/junit-e2e.xml'
-        }
+        success { markStageSuccess('E2E tests') }
+        always { junit allowEmptyResults: true, testResults: 'reports/junit-e2e.xml' }
       }
     }
 
     stage('SonarQube analysis and Quality Gate') {
-      when {
-        anyOf {
-          expression { currentBuild.number == 1 }
-          changeset 'package.json'
-          changeset 'package-lock.json'
-          changeset 'tsconfig.json'
-          changeset 'vitest.config.ts'
-          changeset 'src/**'
-          changeset 'prisma/**'
-          changeset 'sonar-project.properties'
-        }
-      }
+      when { expression { shouldRunStage('SonarQube analysis and Quality Gate', ['Jenkinsfile', 'package.json', 'package-lock.json', 'tsconfig.json', 'vitest.config.ts', 'src/**', 'prisma/**', 'sonar-project.properties']) } }
       steps {
         withCredentials([string(credentialsId: 'liam-sonar-token-backend', variable: 'SONAR_TOKEN')]) {
           sh '''
-            docker compose -f docker-compose.ci.yml run --rm               -e SONAR_HOST_URL="${SONAR_HOST_URL}"               -e SONAR_TOKEN="${SONAR_TOKEN}"               -e SONAR_PROJECT_KEY="${SONAR_PROJECT_KEY}"               sonar-scanner
+            docker compose -f docker-compose.ci.yml run --rm \
+              -e SONAR_HOST_URL="${SONAR_HOST_URL}" \
+              -e SONAR_TOKEN="${SONAR_TOKEN}" \
+              -e SONAR_PROJECT_KEY="${SONAR_PROJECT_KEY}" \
+              sonar-scanner
           '''
         }
       }
+      post { success { markStageSuccess('SonarQube analysis and Quality Gate') } }
     }
 
     stage('Docker build') {
-      when {
-        anyOf {
-          expression { currentBuild.number == 1 }
-          changeset 'package.json'
-          changeset 'package-lock.json'
-          changeset 'tsconfig.json'
-          changeset 'src/**'
-          changeset 'prisma/**'
-          changeset 'Dockerfile'
-          changeset 'docker-compose.yml'
-        }
-      }
-      steps {
-        sh 'npm run docker:build'
-      }
+      when { expression { shouldRunStage('Docker build', ['Jenkinsfile', 'package.json', 'package-lock.json', 'tsconfig.json', 'src/**', 'prisma/**', 'Dockerfile', 'docker-compose.yml']) } }
+      steps { sh 'npm run docker:build' }
+      post { success { markStageSuccess('Docker build') } }
     }
 
     stage('Trivy scan') {
-      when {
-        anyOf {
-          expression { currentBuild.number == 1 }
-          changeset 'package.json'
-          changeset 'package-lock.json'
-          changeset 'src/**'
-          changeset 'prisma/**'
-          changeset 'Dockerfile'
-          changeset 'docker-compose.yml'
-          changeset 'docker-compose.ci.yml'
-        }
-      }
-      steps {
-        sh 'npm run trivy:scan'
-      }
+      when { expression { shouldRunStage('Trivy scan', ['Jenkinsfile', 'package.json', 'package-lock.json', 'src/**', 'prisma/**', 'Dockerfile', 'docker-compose.yml', 'docker-compose.ci.yml']) } }
+      steps { sh 'npm run trivy:scan' }
       post {
-        always {
-          archiveArtifacts allowEmptyArchive: true, artifacts: 'reports/trivy-vulnerabilities.json'
-        }
+        success { markStageSuccess('Trivy scan') }
+        always { archiveArtifacts allowEmptyArchive: true, artifacts: 'reports/trivy-vulnerabilities.json' }
       }
     }
 
     stage('Generate SBOM') {
-      when {
-        anyOf {
-          expression { currentBuild.number == 1 }
-          changeset 'package.json'
-          changeset 'package-lock.json'
-          changeset 'src/**'
-          changeset 'prisma/**'
-          changeset 'Dockerfile'
-          changeset 'docker-compose.yml'
-          changeset 'docker-compose.ci.yml'
-        }
-      }
-      steps {
-        sh 'npm run trivy:sbom'
-      }
+      when { expression { shouldRunStage('Generate SBOM', ['Jenkinsfile', 'package.json', 'package-lock.json', 'src/**', 'prisma/**', 'Dockerfile', 'docker-compose.yml', 'docker-compose.ci.yml']) } }
+      steps { sh 'npm run trivy:sbom' }
       post {
-        always {
-          archiveArtifacts allowEmptyArchive: true, artifacts: 'reports/sbom.cdx.json'
-        }
+        success { markStageSuccess('Generate SBOM') }
+        always { archiveArtifacts allowEmptyArchive: true, artifacts: 'reports/sbom.cdx.json' }
       }
     }
 
     stage('Push Docker image') {
-      when {
-        anyOf {
-          expression { currentBuild.number == 1 }
-          changeset 'package.json'
-          changeset 'package-lock.json'
-          changeset 'src/**'
-          changeset 'prisma/**'
-          changeset 'Dockerfile'
-          changeset 'docker-compose.yml'
-        }
-      }
+      when { expression { shouldRunStage('Push Docker image', ['Jenkinsfile', 'package.json', 'package-lock.json', 'src/**', 'prisma/**', 'Dockerfile', 'docker-compose.yml']) } }
       steps {
         withCredentials([usernamePassword(
           credentialsId: 'liam-dockerhub-password',
@@ -235,6 +188,7 @@ pipeline {
           '''
         }
       }
+      post { success { markStageSuccess('Push Docker image') } }
     }
   }
 
