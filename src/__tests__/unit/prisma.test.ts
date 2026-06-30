@@ -1,25 +1,25 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const prismaClientConstructor = vi.hoisted(() =>
-	vi.fn(function PrismaClient(this: { task: Record<string, never> }) {
-		this.task = {};
-	}),
+  vi.fn(function PrismaClient(this: { task: Record<string, never> }) {
+    this.task = {};
+  })
 );
 
-vi.mock("@prisma/client", () => ({
-	PrismaClient: prismaClientConstructor,
+vi.mock('@prisma/client', () => ({
+  PrismaClient: prismaClientConstructor,
 }));
 
-describe("Prisma singleton", () => {
-	beforeEach(() => {
-		vi.resetModules();
-		prismaClientConstructor.mockClear();
-	});
+describe('Prisma singleton', () => {
+  beforeEach(() => {
+    vi.resetModules();
+    prismaClientConstructor.mockClear();
+  });
 
-	it("should create and export a PrismaClient instance", async () => {
-		const { default: prisma } = await import("../../lib/prisma.js");
+  it('should create and export a PrismaClient instance', async () => {
+    const { default: prisma } = await import('../../lib/prisma.js');
 
-		expect(prismaClientConstructor).toHaveBeenCalledTimes(1);
-		expect(prisma).toBeInstanceOf(prismaClientConstructor);
-	});
+    expect(prismaClientConstructor).toHaveBeenCalledTimes(1);
+    expect(prisma).toBeInstanceOf(prismaClientConstructor);
+  });
 });

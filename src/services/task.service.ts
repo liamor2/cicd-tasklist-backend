@@ -1,4 +1,4 @@
-import prisma from "../lib/prisma.js";
+import prisma from '../lib/prisma.js';
 
 export interface CreateTaskInput {
   title: string;
@@ -13,7 +13,7 @@ export interface UpdateTaskInput {
 
 export async function findAll() {
   return prisma.task.findMany({
-    orderBy: { createdAt: "desc" },
+    orderBy: { createdAt: 'desc' },
   });
 }
 
@@ -35,7 +35,7 @@ export async function create(data: CreateTaskInput) {
 export async function update(id: number, data: UpdateTaskInput) {
   const existing = await prisma.task.findUnique({ where: { id } });
   if (!existing) {
-    throw new Error("Task not found");
+    throw new Error('Task not found');
   }
   return prisma.task.update({
     where: { id },
@@ -46,7 +46,7 @@ export async function update(id: number, data: UpdateTaskInput) {
 export async function remove(id: number) {
   const existing = await prisma.task.findUnique({ where: { id } });
   if (!existing) {
-    throw new Error("Task not found");
+    throw new Error('Task not found');
   }
   return prisma.task.delete({
     where: { id },

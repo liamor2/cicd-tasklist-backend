@@ -21,7 +21,12 @@
     "trivy:sbom": "mkdir -p reports && docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v \"$(pwd)/reports:/reports\" -v cicd-tasklist-backend_trivy-cache:/root/.cache/trivy aquasec/trivy:latest image --format cyclonedx --output /reports/sbom.cdx.json efrei-pro-pipepline-tp4-backend:latest",
     "trivy:ci": "bun run trivy:build && bun run trivy:scan && bun run trivy:sbom",
     "sonar": "docker compose --env-file .env -f docker-compose.ci.yml run --rm sonar-scanner",
-    "sonar:all": "bun run sonar && sh -c 'cd ../cicd-tasklist-frontend && bun run sonar'"
+    "sonar:all": "bun run sonar && sh -c 'cd ../cicd-tasklist-frontend && bun run sonar'",
+    "format": "biome format --write .",
+    "format:check": "biome format .",
+    "lint": "biome lint .",
+    "check": "biome ci .",
+    "sonar:ci": "docker compose -f docker-compose.ci.yml run --rm sonar-scanner"
   },
   "dependencies": {
     "@prisma/client": "^6.9.0",
@@ -31,6 +36,7 @@
     "prisma": "^6.9.0"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.5.1",
     "@sonar/scan": "^4.3.8",
     "@types/cors": "^2.8.17",
     "@types/express": "^5.0.2",
