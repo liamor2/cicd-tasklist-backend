@@ -1,4 +1,6 @@
-def STAGE_HASHES = [:]
+import groovy.transform.Field
+
+@Field Map STAGE_HASHES = [:]
 
 def cacheKey(String stageName) {
   return stageName.toLowerCase().replaceAll(/[^a-z0-9]+/, '-')
