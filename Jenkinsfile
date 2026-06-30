@@ -62,7 +62,7 @@ pipeline {
 
     stage('SonarQube analysis and Quality Gate') {
       steps {
-        withCredentials([string(credentialsId: 'liamor2-sonar-token', variable: 'SONAR_TOKEN')]) {
+        withCredentials([string(credentialsId: 'liam-sonar-token-backend', variable: 'SONAR_TOKEN')]) {
           sh '''
             docker compose -f docker-compose.ci.yml run --rm \
               -e SONAR_HOST_URL="${SONAR_HOST_URL}" \
@@ -105,7 +105,7 @@ pipeline {
     stage('Push Docker image') {
       steps {
         withCredentials([usernamePassword(
-          credentialsId: 'liamor2-dockerhub-password',
+          credentialsId: 'liam-dockerhub-password',
           usernameVariable: 'DOCKERHUB_USERNAME',
           passwordVariable: 'DOCKERHUB_PASSWORD'
         )]) {
