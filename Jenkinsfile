@@ -8,7 +8,7 @@ pipeline {
   environment {
     JENKINS_URL = 'https://jenkins.cicd.kits.ext.educentre.fr/'
     SONAR_HOST_URL = 'https://sonarqube.cicd.kits.ext.educentre.fr'
-    SONAR_PROJECT_KEY = 'liam-tasklist-backend'
+    SONAR_PROJECT_KEY = 'liam-tasklist-backend2'
     LOCAL_IMAGE = 'efrei-pro-pipepline-tp4-backend:latest'
     DOCKERHUB_IMAGE = 'liamor2/efrei-pro-pipepline-tp4-backend'
     DOCKER_BUILDKIT = '1'
