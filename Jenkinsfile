@@ -15,6 +15,21 @@ pipeline {
   }
 
   stages {
+    stage("Setup Bun") {
+      steps {
+        script {
+          env.BUN_INSTALL = "${pwd()}/.bun"
+          env.PATH = "${env.BUN_INSTALL}/bin:${env.PATH}"
+        }
+        sh """
+          if ! command -v bun >/dev/null 2>&1; then
+            curl -fsSL https://bun.sh/install | bash
+          fi
+          bun --version
+        """
+      }
+    }
+
     stage('Install dependencies') {
       steps {
         sh 'bun install --frozen-lockfile'
