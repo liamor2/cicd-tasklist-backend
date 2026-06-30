@@ -88,25 +88,25 @@ pipeline {
 
   stages {
     stage('Install dependencies') {
-      when { expression { shouldRunStage('Install dependencies', ['Jenkinsfile', 'package.json', 'package-lock.json', 'tsconfig.json', 'vitest.config.ts', 'biome.json', 'src/**', 'prisma/**', 'sonar-project.properties']) } }
+      when { expression { shouldRunStage('Install dependencies', ['Jenkinsfile', 'scripts/**', 'package.json', 'package-lock.json', 'tsconfig.json', 'vitest.config.ts', 'biome.json', 'src/**', 'prisma/**', 'sonar-project.properties']) } }
       steps { sh 'npm ci --cache "$HOME/.npm-cache" --prefer-offline' }
       post { success { markStageSuccess('Install dependencies') } }
     }
 
     stage('Generate Prisma client') {
-      when { expression { shouldRunStage('Generate Prisma client', ['Jenkinsfile', 'package.json', 'package-lock.json', 'prisma/**']) } }
+      when { expression { shouldRunStage('Generate Prisma client', ['Jenkinsfile', 'scripts/**', 'package.json', 'package-lock.json', 'prisma/**']) } }
       steps { sh 'npm run prisma:generate' }
       post { success { markStageSuccess('Generate Prisma client') } }
     }
 
     stage('Lint and format check') {
-      when { expression { shouldRunStage('Lint and format check', ['Jenkinsfile', 'package.json', 'package-lock.json', 'tsconfig.json', 'vitest.config.ts', 'biome.json', 'src/**', 'prisma/**']) } }
+      when { expression { shouldRunStage('Lint and format check', ['Jenkinsfile', 'scripts/**', 'package.json', 'package-lock.json', 'tsconfig.json', 'vitest.config.ts', 'biome.json', 'src/**', 'prisma/**']) } }
       steps { sh 'npm run check' }
       post { success { markStageSuccess('Lint and format check') } }
     }
 
     stage('Unit tests') {
-      when { expression { shouldRunStage('Unit tests', ['Jenkinsfile', 'package.json', 'package-lock.json', 'tsconfig.json', 'vitest.config.ts', 'src/**', 'prisma/**', 'sonar-project.properties']) } }
+      when { expression { shouldRunStage('Unit tests', ['Jenkinsfile', 'scripts/**', 'package.json', 'package-lock.json', 'tsconfig.json', 'vitest.config.ts', 'src/**', 'prisma/**', 'sonar-project.properties']) } }
       steps {
         sh 'npm run test:coverage'
         sh 'mkdir -p reports coverage'
@@ -120,7 +120,7 @@ pipeline {
     }
 
     stage('E2E tests') {
-      when { expression { shouldRunStage('E2E tests', ['Jenkinsfile', 'package.json', 'package-lock.json', 'tsconfig.json', 'vitest.config.ts', 'src/**', 'prisma/**', 'sonar-project.properties']) } }
+      when { expression { shouldRunStage('E2E tests', ['Jenkinsfile', 'scripts/**', 'package.json', 'package-lock.json', 'tsconfig.json', 'vitest.config.ts', 'src/**', 'prisma/**', 'sonar-project.properties']) } }
       steps {
         sh 'npm run test:e2e:coverage'
         sh 'cp reports/junit.xml reports/junit-e2e.xml'
@@ -133,11 +133,11 @@ pipeline {
     }
 
     stage('SonarQube analysis and Quality Gate') {
-      when { expression { shouldRunStage('SonarQube analysis and Quality Gate', ['Jenkinsfile', 'package.json', 'package-lock.json', 'tsconfig.json', 'vitest.config.ts', 'src/**', 'prisma/**', 'sonar-project.properties']) } }
+      when { expression { shouldRunStage('SonarQube analysis and Quality Gate', ['Jenkinsfile', 'scripts/**', 'package.json', 'package-lock.json', 'tsconfig.json', 'vitest.config.ts', 'src/**', 'prisma/**', 'sonar-project.properties']) } }
       steps {
         withCredentials([string(credentialsId: 'liam-sonar-token-backend', variable: 'SONAR_TOKEN')]) {
           sh '''
-            docker compose -f docker-compose.ci.yml run --rm \
+            ./scripts/docker-compose.sh -f docker-compose.ci.yml run --rm \
               -e SONAR_HOST_URL="${SONAR_HOST_URL}" \
               -e SONAR_TOKEN="${SONAR_TOKEN}" \
               -e SONAR_PROJECT_KEY="${SONAR_PROJECT_KEY}" \
@@ -149,13 +149,13 @@ pipeline {
     }
 
     stage('Docker build') {
-      when { expression { shouldRunStage('Docker build', ['Jenkinsfile', 'package.json', 'package-lock.json', 'tsconfig.json', 'src/**', 'prisma/**', 'Dockerfile', 'docker-compose.yml']) } }
+      when { expression { shouldRunStage('Docker build', ['Jenkinsfile', 'scripts/**', 'package.json', 'package-lock.json', 'tsconfig.json', 'src/**', 'prisma/**', 'Dockerfile', 'docker-compose.yml']) } }
       steps { sh 'npm run docker:build' }
       post { success { markStageSuccess('Docker build') } }
     }
 
     stage('Trivy scan') {
-      when { expression { shouldRunStage('Trivy scan', ['Jenkinsfile', 'package.json', 'package-lock.json', 'src/**', 'prisma/**', 'Dockerfile', 'docker-compose.yml', 'docker-compose.ci.yml']) } }
+      when { expression { shouldRunStage('Trivy scan', ['Jenkinsfile', 'scripts/**', 'package.json', 'package-lock.json', 'src/**', 'prisma/**', 'Dockerfile', 'docker-compose.yml', 'docker-compose.ci.yml']) } }
       steps { sh 'npm run trivy:scan' }
       post {
         success { markStageSuccess('Trivy scan') }
@@ -164,7 +164,7 @@ pipeline {
     }
 
     stage('Generate SBOM') {
-      when { expression { shouldRunStage('Generate SBOM', ['Jenkinsfile', 'package.json', 'package-lock.json', 'src/**', 'prisma/**', 'Dockerfile', 'docker-compose.yml', 'docker-compose.ci.yml']) } }
+      when { expression { shouldRunStage('Generate SBOM', ['Jenkinsfile', 'scripts/**', 'package.json', 'package-lock.json', 'src/**', 'prisma/**', 'Dockerfile', 'docker-compose.yml', 'docker-compose.ci.yml']) } }
       steps { sh 'npm run trivy:sbom' }
       post {
         success { markStageSuccess('Generate SBOM') }
@@ -173,7 +173,7 @@ pipeline {
     }
 
     stage('Push Docker image') {
-      when { expression { shouldRunStage('Push Docker image', ['Jenkinsfile', 'package.json', 'package-lock.json', 'src/**', 'prisma/**', 'Dockerfile', 'docker-compose.yml']) } }
+      when { expression { shouldRunStage('Push Docker image', ['Jenkinsfile', 'scripts/**', 'package.json', 'package-lock.json', 'src/**', 'prisma/**', 'Dockerfile', 'docker-compose.yml']) } }
       steps {
         withCredentials([usernamePassword(
           credentialsId: 'liam-dockerhub-password',
