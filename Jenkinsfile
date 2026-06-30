@@ -16,24 +16,74 @@ pipeline {
 
   stages {
     stage('Install dependencies') {
+      when {
+        anyOf {
+          expression { currentBuild.number == 1 }
+          changeset 'Jenkinsfile'
+          changeset 'package.json'
+          changeset 'package-lock.json'
+          changeset 'tsconfig.json'
+          changeset 'vitest.config.ts'
+          changeset 'biome.json'
+          changeset 'src/**'
+          changeset 'prisma/**'
+          changeset 'Dockerfile'
+          changeset 'docker-compose*.yml'
+          changeset 'sonar-project.properties'
+        }
+      }
       steps {
-        sh 'npm ci'
+        sh 'npm ci --cache "$HOME/.npm-cache" --prefer-offline'
       }
     }
 
     stage('Generate Prisma client') {
+      when {
+        anyOf {
+          expression { currentBuild.number == 1 }
+          changeset 'package.json'
+          changeset 'package-lock.json'
+          changeset 'prisma/**'
+          changeset 'src/**'
+          changeset 'tsconfig.json'
+        }
+      }
       steps {
         sh 'npm run prisma:generate'
       }
     }
 
     stage('Lint and format check') {
+      when {
+        anyOf {
+          expression { currentBuild.number == 1 }
+          changeset 'Jenkinsfile'
+          changeset 'package.json'
+          changeset 'package-lock.json'
+          changeset 'tsconfig.json'
+          changeset 'vitest.config.ts'
+          changeset 'biome.json'
+          changeset 'src/**'
+          changeset 'prisma/**'
+        }
+      }
       steps {
         sh 'npm run check'
       }
     }
 
     stage('Unit tests') {
+      when {
+        anyOf {
+          expression { currentBuild.number == 1 }
+          changeset 'package.json'
+          changeset 'package-lock.json'
+          changeset 'tsconfig.json'
+          changeset 'vitest.config.ts'
+          changeset 'src/**'
+          changeset 'prisma/**'
+        }
+      }
       steps {
         sh 'npm run test:coverage'
         sh 'mkdir -p reports coverage'
@@ -48,6 +98,17 @@ pipeline {
     }
 
     stage('E2E tests') {
+      when {
+        anyOf {
+          expression { currentBuild.number == 1 }
+          changeset 'package.json'
+          changeset 'package-lock.json'
+          changeset 'tsconfig.json'
+          changeset 'vitest.config.ts'
+          changeset 'src/**'
+          changeset 'prisma/**'
+        }
+      }
       steps {
         sh 'npm run test:e2e:coverage'
         sh 'cp reports/junit.xml reports/junit-e2e.xml'
@@ -61,26 +122,58 @@ pipeline {
     }
 
     stage('SonarQube analysis and Quality Gate') {
+      when {
+        anyOf {
+          expression { currentBuild.number == 1 }
+          changeset 'package.json'
+          changeset 'package-lock.json'
+          changeset 'tsconfig.json'
+          changeset 'vitest.config.ts'
+          changeset 'src/**'
+          changeset 'prisma/**'
+          changeset 'sonar-project.properties'
+        }
+      }
       steps {
         withCredentials([string(credentialsId: 'liam-sonar-token-backend', variable: 'SONAR_TOKEN')]) {
           sh '''
-            docker compose -f docker-compose.ci.yml run --rm \
-              -e SONAR_HOST_URL="${SONAR_HOST_URL}" \
-              -e SONAR_TOKEN="${SONAR_TOKEN}" \
-              -e SONAR_PROJECT_KEY="${SONAR_PROJECT_KEY}" \
-              sonar-scanner
+            docker compose -f docker-compose.ci.yml run --rm               -e SONAR_HOST_URL="${SONAR_HOST_URL}"               -e SONAR_TOKEN="${SONAR_TOKEN}"               -e SONAR_PROJECT_KEY="${SONAR_PROJECT_KEY}"               sonar-scanner
           '''
         }
       }
     }
 
     stage('Docker build') {
+      when {
+        anyOf {
+          expression { currentBuild.number == 1 }
+          changeset 'package.json'
+          changeset 'package-lock.json'
+          changeset 'tsconfig.json'
+          changeset 'src/**'
+          changeset 'prisma/**'
+          changeset 'Dockerfile'
+          changeset 'docker-compose.yml'
+        }
+      }
       steps {
         sh 'npm run docker:build'
       }
     }
 
     stage('Trivy scan') {
+      when {
+        anyOf {
+          expression { currentBuild.number == 1 }
+          changeset 'package.json'
+          changeset 'package-lock.json'
+          changeset 'src/**'
+          changeset 'prisma/**'
+          changeset 'Dockerfile'
+          changeset 'docker-compose.yml'
+          changeset 'docker-compose.ci.yml'
+        }
+      }
       steps {
         sh 'npm run trivy:scan'
       }
@@ -92,6 +185,18 @@ pipeline {
     }
 
     stage('Generate SBOM') {
+      when {
+        anyOf {
+          expression { currentBuild.number == 1 }
+          changeset 'package.json'
+          changeset 'package-lock.json'
+          changeset 'src/**'
+          changeset 'prisma/**'
+          changeset 'Dockerfile'
+          changeset 'docker-compose.yml'
+          changeset 'docker-compose.ci.yml'
+        }
+      }
       steps {
         sh 'npm run trivy:sbom'
       }
@@ -103,6 +208,17 @@ pipeline {
     }
 
     stage('Push Docker image') {
+      when {
+        anyOf {
+          expression { currentBuild.number == 1 }
+          changeset 'package.json'
+          changeset 'package-lock.json'
+          changeset 'src/**'
+          changeset 'prisma/**'
+          changeset 'Dockerfile'
+          changeset 'docker-compose.yml'
+        }
+      }
       steps {
         withCredentials([usernamePassword(
           credentialsId: 'liam-dockerhub-password',
