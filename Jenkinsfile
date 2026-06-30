@@ -15,42 +15,27 @@ pipeline {
   }
 
   stages {
-    stage("Setup Bun") {
-      steps {
-        script {
-          env.BUN_INSTALL = "${pwd()}/.bun"
-          env.PATH = "${env.BUN_INSTALL}/bin:${env.PATH}"
-        }
-        sh """
-          if ! command -v bun >/dev/null 2>&1; then
-            curl -fsSL https://bun.sh/install | bash
-          fi
-          bun --version
-        """
-      }
-    }
-
     stage('Install dependencies') {
       steps {
-        sh 'bun install --frozen-lockfile'
+        sh 'npm ci'
       }
     }
 
     stage('Generate Prisma client') {
       steps {
-        sh 'bun run prisma:generate'
+        sh 'npm run prisma:generate'
       }
     }
 
     stage('Lint and format check') {
       steps {
-        sh 'bun run check'
+        sh 'npm run check'
       }
     }
 
     stage('Unit tests') {
       steps {
-        sh 'bun run test:coverage'
+        sh 'npm run test:coverage'
         sh 'mkdir -p reports coverage'
         sh 'cp reports/junit.xml reports/junit-unit.xml'
         sh 'cp coverage/lcov.info coverage/unit.lcov.info'
@@ -64,7 +49,7 @@ pipeline {
 
     stage('E2E tests') {
       steps {
-        sh 'bun run test:e2e:coverage'
+        sh 'npm run test:e2e:coverage'
         sh 'cp reports/junit.xml reports/junit-e2e.xml'
         sh 'cp coverage/lcov.info coverage/e2e.lcov.info'
       }
@@ -91,13 +76,13 @@ pipeline {
 
     stage('Docker build') {
       steps {
-        sh 'bun run docker:build'
+        sh 'npm run docker:build'
       }
     }
 
     stage('Trivy scan') {
       steps {
-        sh 'bun run trivy:scan'
+        sh 'npm run trivy:scan'
       }
       post {
         always {
@@ -108,7 +93,7 @@ pipeline {
 
     stage('Generate SBOM') {
       steps {
-        sh 'bun run trivy:sbom'
+        sh 'npm run trivy:sbom'
       }
       post {
         always {
