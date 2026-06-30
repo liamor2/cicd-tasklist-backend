@@ -137,11 +137,7 @@ pipeline {
       steps {
         withCredentials([string(credentialsId: 'liam-sonar-token-backend', variable: 'SONAR_TOKEN')]) {
           sh '''
-            ./scripts/docker-compose.sh -f docker-compose.ci.yml run --rm \
-              -e SONAR_HOST_URL="${SONAR_HOST_URL}" \
-              -e SONAR_TOKEN="${SONAR_TOKEN}" \
-              -e SONAR_PROJECT_KEY="${SONAR_PROJECT_KEY}" \
-              sonar-scanner
+            npm run sonar:ci
           '''
         }
       }
